@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Compiled TypeScript files
+/dist
+
+# Environment variables (VERY IMPORTANT)
+.env
+
+# Drizzle migration files
+/drizzle
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
