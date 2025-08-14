@@ -2,21 +2,18 @@ import express from 'express';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import 'dotenv/config';
-import cors from 'cors'; // Import cors
+import cors from 'cors';
 import { pool, db } from './db/connection.js';
 import { users } from './db/schema.js';
 import authRouter from './auth.js';
-import { eq } from 'drizzle-orm';
 import apiRouter from './api.js';
+import { eq } from 'drizzle-orm';
+
 const app = express();
-const PORT = process.env.PORT || 8080;
 
-// --- Middleware ---
-
-// CORS Middleware: Allow the frontend to make requests
 app.use(cors({
-  origin: 'http://localhost:5173', // The origin of your frontend app
-  credentials: true, // Allow cookies to be sent
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
 }));
 
 const PgStore = connectPgSimple(session);
@@ -27,31 +24,24 @@ const sessionStore = new PgStore({
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'a-super-secret-key-that-should-be-in-env',
+  secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: true, // Should be true in production
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'none', // Required for cross-site cookies
   },
 }));
 
+app.use('/auth', authRouter);
+app.use('/api', apiRouter);
 
-// --- API Routes ---
-app.use('/auth', authRouter);
-app.use('/auth', authRouter);
-app.use('/api', apiRouter); 
-// A protected route to check who is logged in
-app.get('/api/me', async (req, res) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, req.session.userId),
-  });
-  res.json({ user });
+// Test route for the root
+app.get('/', (req, res) => {
+  res.send('UniDash Backend is running! 🚀');
 });
 
-
+// This is the crucial part for Vercel
 export default app;
