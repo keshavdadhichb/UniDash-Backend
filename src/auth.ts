@@ -6,15 +6,17 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
-// Initialize the Google OAuth client with our credentials
+// IMPORTANT: Ensure this URL exactly matches your Vercel backend URL
+// and the one in your Google Cloud Console "Authorized redirect URIs".
+const redirectUri = 'https://uni-dash-backend.vercel.app/auth/google/callback';
+
 const oAuth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  'http://localhost:8080/auth/google/callback' // The same redirect URI from Google Console
+  redirectUri
 );
 
 // 1. The route that starts the login process
-// It generates a URL to Google's login page and redirects the user there.
 router.get('/google', (req, res) => {
   const authorizeUrl = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -26,29 +28,18 @@ router.get('/google', (req, res) => {
   });
   res.redirect(authorizeUrl);
 });
-router.post('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ message: 'Could not log out, please try again.' });
-    }
-    // Clears the session cookie from the browser
-    res.clearCookie('connect.sid'); 
-    res.status(200).json({ message: 'Logged out successfully' });
-  });
-});
+
 // 2. The route Google redirects back to after a successful login
 router.get('/google/callback', async (req, res) => {
   try {
-    const { code } = req.query; // Google provides a 'code'
+    const { code } = req.query;
     if (!code) {
       return res.status(400).send('Missing code parameter');
     }
 
-    // Exchange the code for tokens (access token, ID token)
     const { tokens } = await oAuth2Client.getToken(code as string);
     oAuth2Client.setCredentials(tokens);
 
-    // Get user profile information from the ID token
     const ticket = await oAuth2Client.verifyIdToken({
         idToken: tokens.id_token!,
         audience: process.env.GOOGLE_CLIENT_ID!,
@@ -59,25 +50,23 @@ router.get('/google/callback', async (req, res) => {
       return res.status(400).send('Invalid user payload from Google');
     }
     
-    // --- UniDash Specific Logic ---
-    // SECURITY CHECK: Ensure the user has a @vitstudent.ac.in email
+    // Domain Restriction Check
     if (!payload.email.endsWith('@vitstudent.ac.in')) {
-        return res.status(403).send('Login failed. Only @vitstudent.ac.in emails are permitted.');
+        const errorPageUrl = `${process.env.FRONTEND_URL}/login-error?reason=domain_mismatch`;
+        return res.redirect(errorPageUrl);
     }
 
-    // Check if user already exists in our database
+    // Find or create user in the database
     let user = await db.query.users.findFirst({
         where: eq(users.googleId, payload.sub),
     });
 
     if (user) {
-      // If user exists, update their name and avatar if it changed
       await db.update(users).set({
         name: payload.name,
         avatarUrl: payload.picture,
       }).where(eq(users.id, user.id));
     } else {
-      // If user does not exist, create a new user record
       const newUser = await db.insert(users).values({
         googleId: payload.sub,
         email: payload.email,
@@ -88,24 +77,32 @@ router.get('/google/callback', async (req, res) => {
     }
     
     if (user) {
-        // --- CREATE THE SESSION ---
-        // This is the key part: we store the user's ID in the session.
-        // The session middleware will automatically handle sending the cookie.
+        // Create the session
         req.session.userId = user.id;
-
-        console.log(`User ${user.email} logged in successfully and session created!`);
     } else {
         throw new Error("Failed to create or find user after login.");
     }
 
-    // Finally, redirect to the frontend dashboard
-    // The frontend will run on port 5173 by default with Vite
-    res.redirect('http://localhost:5173/dashboard');
+    // Redirect to the deployed frontend's dashboard
+    const dashboardUrl = `${process.env.FRONTEND_URL}/dashboard`;
+    res.redirect(dashboardUrl);
 
   } catch (error) {
     console.error('Authentication error:', error);
-    res.status(500).send('Authentication failed.');
+    const errorPageUrl = `${process.env.FRONTEND_URL}/login-error?reason=auth_failed`;
+    res.redirect(errorPageUrl);
   }
+});
+
+// 3. The route for logging out
+router.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ message: 'Could not log out, please try again.' });
+    }
+    res.clearCookie('connect.sid'); 
+    res.status(200).json({ message: 'Logged out successfully' });
+  });
 });
 
 export default router;
