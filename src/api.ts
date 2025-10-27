@@ -49,7 +49,7 @@ router.patch('/requests/:id/accept', async (req, res) => {
 
     res.status(200).json({
       message: 'Delivery accepted successfully!',
-      otp, // for testing; hide in production
+      otp, // Included for potential debugging/testing, consider removing for production security
     });
   } catch (error) {
     console.error('Failed to accept request:', error);
@@ -123,7 +123,7 @@ router.get('/requests', async (req, res) => {
       .select({
         id: requests.id,
         itemDescription: requests.itemDescription,
-        estimatedPrice: requests.estimatedPrice,
+        // estimatedPrice: requests.estimatedPrice, // <-- THIS LINE WAS REMOVED
         deliveryLocationDetails: requests.deliveryLocationDetails,
         requesterName: users.name,
       })
@@ -147,8 +147,6 @@ router.get('/requests', async (req, res) => {
  * POST /api/requests
  * Create a new delivery request
  */
-// ... other imports and routes
-
 router.post('/requests', async (req, res) => {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -156,7 +154,7 @@ router.post('/requests', async (req, res) => {
 
   const {
     itemDescription,
-    pickupLocation, // <-- NEW
+    pickupLocation,
     requesterPhone,
     deliveryLocationType,
     deliveryLocationDetails,
@@ -168,9 +166,12 @@ router.post('/requests', async (req, res) => {
   }
 
   try {
-    await db.update(users)
-      .set({ phone: requesterPhone })
-      .where(eq(users.id, req.session.userId));
+    // Ensure user phone number is updated if provided
+    if (requesterPhone) {
+        await db.update(users)
+          .set({ phone: requesterPhone })
+          .where(eq(users.id, req.session.userId));
+    }
 
     const newRequest = await db.insert(requests).values({
       requesterId: req.session.userId,
@@ -191,7 +192,6 @@ router.post('/requests', async (req, res) => {
   }
 });
 
-// ... rest of the file
 
 /**
  * GET /api/my-requests
@@ -221,13 +221,13 @@ router.get('/my-requests', async (req, res) => {
     res.json(myRequests);
   } catch (error) {
     console.error("Failed to fetch user's requests:", error);
-    res.status(500).json({ error: 'Failed to fetch your requests' });
+    res.status(500).json({ error: "Failed to fetch your requests" });
   }
 });
 
 /**
  * GET /api/my-deliveries
- * Get deliveries accepted by the logged-in user
+ * Get deliveries accepted by the logged-in user that are in_progress
  */
 router.get('/my-deliveries', async (req, res) => {
   if (!req.session?.userId) {
@@ -241,7 +241,7 @@ router.get('/my-deliveries', async (req, res) => {
         itemDescription: requests.itemDescription,
         deliveryLocationDetails: requests.deliveryLocationDetails,
         requesterName: users.name,
-        requesterPhone: users.phone,
+        requesterPhone: users.phone, // Relies on phone being in users table
       })
       .from(requests)
       .innerJoin(users, eq(requests.requesterId, users.id))
