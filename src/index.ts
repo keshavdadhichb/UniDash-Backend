@@ -10,7 +10,7 @@ import apiRouter from './api.js';
 import { eq } from 'drizzle-orm';
 
 const app = express();
-
+app.set('trust proxy', 1);
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
@@ -28,10 +28,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,      // MUST be true for HTTPS (Vercel uses HTTPS)
-    httpOnly: true,    // Good security practice
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none'   // REQUIRED for cross-site cookies, MUST have secure: true
+    secure: true,      // ✓ Required for HTTPS
+    httpOnly: true,    // ✓ Good for security
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    sameSite: 'none'   // ✓ Required for cross-domain
   },
 }));
 
