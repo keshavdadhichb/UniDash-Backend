@@ -28,10 +28,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true, // Should be true in production
-    httpOnly: true,
+    secure: true,      // MUST be true for HTTPS (Vercel uses HTTPS)
+    httpOnly: true,    // Good security practice
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none', // Required for cross-site cookies
+    sameSite: 'none'   // REQUIRED for cross-site cookies, MUST have secure: true
   },
 }));
 
