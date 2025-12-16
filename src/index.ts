@@ -23,16 +23,40 @@ const sessionStore = new PgStore({
   tableName: 'user_sessions',
 });
 
+app.use(express.json());
+
+// DEBUG LOGGING MIDDLEWARE
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`   Headers:`, JSON.stringify(req.headers['cookie'] ? { ...req.headers, cookie: '[HIDDEN]' } : req.headers));
+  console.log(`   Cookie Present: ${!!req.headers.cookie}`);
+
+  if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    console.log(`   Body:`, JSON.stringify(req.body));
+  }
+
+  // Capture response status
+  const originalSend = res.send;
+  res.on('finish', () => {
+    console.log(`   Status: ${res.statusCode} ${res.statusMessage || ''}`);
+    if (res.statusCode >= 400) {
+      console.log(`   ⚠️ Request Failed: ${res.statusCode}`);
+    }
+  });
+
+  next();
+});
+
 app.use(session({
   store: sessionStore,
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,
-    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: false, // Allow extraction by Flutter WebView
     maxAge: 1000 * 60 * 60 * 24 * 7,
-    sameSite: 'none'
+    sameSite: 'lax' // lax is better for redirect flows
   },
 }));
 

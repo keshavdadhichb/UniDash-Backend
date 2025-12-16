@@ -1,33 +1,42 @@
-import { pgTable, serial, text, varchar, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, timestamp, integer, boolean, json } from 'drizzle-orm/pg-core';
+
+// SESSION TABLE: for connect-pg-simple
+export const userSessions = pgTable('user_sessions', {
+  sid: varchar('sid').primaryKey(),
+  sess: json('sess').notNull(),
+  expire: timestamp('expire').notNull(),
+});
 
 // USER TABLE: Stores student information
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  googleId: text('google_id').unique().notNull(),
-  name: varchar('name', { length: 256 }).notNull(),
-  email: varchar('email', { length: 256 }).unique().notNull(),
-  avatarUrl: text('avatar_url'),
-  phone: varchar('phone', { length: 15 }), // <-- merged from first snippet
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  googleId: varchar('google_id').notNull().unique(),
+  email: varchar('email').notNull().unique(),
+  name: varchar('name').notNull(),
+  avatarUrl: varchar('avatar_url'),
+  phone: varchar('phone'),                // Captured in Onboarding
+  registrationNumber: varchar('registration_number'), // Parsed from email
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
-// REQUESTS TABLE: Stores all delivery requests
 export const requests = pgTable('requests', {
   id: serial('id').primaryKey(),
   requesterId: integer('requester_id').references(() => users.id).notNull(),
   delivererId: integer('deliverer_id').references(() => users.id),
-  status: varchar('status', { length: 50 }).default('pending').notNull(),
 
-  // NEW SIMPLIFIED FIELDS
+  // -- New Fields --
   itemDescription: text('item_description').notNull(),
-  pickupLocation: text('pickup_location').notNull(), // <-- NEW universal field
-  deliveryLocationType: varchar('delivery_location_type').notNull(), // 'hostel' or 'campus'
-  deliveryLocationDetails: text('delivery_location_details').notNull(),
-  requesterPhone: varchar('requester_phone', { length: 15 }).notNull(),
-  specialInstructions: text('special_instructions'),
+  itemType: varchar('item_type').notNull(),         // 'Food', 'Paperwork', 'Others'
+  paymentStatus: varchar('payment_status').notNull(), // 'Paid', 'Not Paid'
 
-  // Removed: estimatedPrice, isFoodItem, foodPaymentStatus, foodCollectionLocation
+  pickupLocation: varchar('pickup_location').notNull(),
+  deliveryLocation: text('delivery_location').notNull(), // Specific text input
 
-  otp: varchar('otp', { length: 4 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  note: text('note'),                               // Additional instructions
+
+  // -- Delivery Logistics --
+  otp: varchar('otp'),                              // 4-digit code
+  status: varchar('status').default('pending'),     // pending, in_progress, completed, cancelled
+
+  createdAt: timestamp('created_at').defaultNow(),
 });
